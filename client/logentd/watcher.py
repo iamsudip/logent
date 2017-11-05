@@ -13,7 +13,13 @@ logger.addHandler(logging.StreamHandler())
 logger.setLevel(logging.DEBUG)
 
 
+__all__ = ['Watcher']
+
+
 class TestWatcher(unittest.TestCase):
+    """
+    >>>
+    """
     def setUp(self):
         self.test_filename = 'hello.log'
         def create_file_if_not_exists(filename):
@@ -25,7 +31,7 @@ class TestWatcher(unittest.TestCase):
         def test_callback(filename, lines):
             if filename not in self.logs:
                 self.logs[filename] = []
-            self.logs[filename].extend(lines)
+            self.logs[filename].append(lines)
 
         self.testfile = open(self.test_filename, 'w')
         self.watcher = Watcher(self.test_filename, callback=test_callback)
@@ -33,8 +39,8 @@ class TestWatcher(unittest.TestCase):
     def test_watcher(self):
         self.testfile.write('hello')
         self.testfile.flush()
-        self.watcher.watch(watch_once=True)
-        self.assertEqual(self.logs, {self.test_filename: [b'hello']})
+        self.watcher.watch(seek_to_end=False, manual_handling=True)
+        self.assertEqual(self.logs, {self.test_filename: ['hello']})
 
     def tearDown(self):
         self.watcher.unwatch()
@@ -43,11 +49,8 @@ class TestWatcher(unittest.TestCase):
 
 class Watcher(object):
     """
-    >>> def some_callback(filename, lines):
-            print filename, lines
-
-    >>> logent = logent.Watcher(
-            '/var/log/nginx/access.log', callback=some_callback)
+    >>> logent = logentd.Watcher(
+            '/var/log/nginx/access.log', callback=logentd.Watcher.log)
     >>> logent.watch()
     """
     def __init__(self, filename, callback):
@@ -60,8 +63,6 @@ class Watcher(object):
         assert os.path.isfile(self.filename), 'Not a file: %s' % self.filename
         self.log(self.filename, 'File is sane!')
 
-        self._opened_file = open(self.filename, 'rb')
-        self._opened_file.seek(os.path.getsize(self.filename))
         self.log(self.filename, 'Watcher is set!')
 
     @staticmethod
@@ -80,7 +81,7 @@ class Watcher(object):
 
     def _watch_with_callback(self):
         while True:
-            lines = self._opened_file.readlines(self.chunk_size)
+            lines = self._opened_file.readline()
             if not lines: break
             self.callback(self.filename, lines)
 
@@ -88,13 +89,17 @@ class Watcher(object):
         self.log(self.filename, 'Closing file.')
         self._opened_file.close()
 
-    def watch(self, interval=1, watch_once=False):
+    def watch(self, interval=1, seek_to_end=True, manual_handling=False):
         try:
+            self._opened_file = open(self.filename, 'rb')
+            if seek_to_end:
+                self._opened_file.seek(os.path.getsize(self.filename))
             while True:
                 self._watch_with_callback()
-                if watch_once:
+                if manual_handling:
                     break
                 self.log('Sleeping', interval)
                 time.sleep(interval)
         finally:
-            self.unwatch()
+            if not manual_handling:
+                self.unwatch()
