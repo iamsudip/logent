@@ -43,7 +43,7 @@ class RegexParser(BaseParser):
     TYPE = 'regex'
 
     def get_pattern(self):
-        return self.context
+        return self.context["pattern"]
 
     def parse(self, line):
         pattern = self.get_pattern()

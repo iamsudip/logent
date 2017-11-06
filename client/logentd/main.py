@@ -7,6 +7,7 @@ from parser import LogParserFactory
 from watcher import Watcher
 from worker import LogManagerFactory
 
+
 collector = click.Group()
 
 @collector.command()
@@ -15,11 +16,14 @@ def start(config):
     config = Config(config)
     config.load()
     namespace = config.namespace
-    parser_type = config.pattern_type
-    pattern = config.pattern
+    parser_type = config.parser_type
+    parser_context = config.parser_context
     log_file = config.log_file
-    parser = LogParserFactory.get_parser(parser_type, pattern)
-    log_manager = LogManagerFactory.get_instance(namespace, parser)
+    buffer_size = config.buffer_size
+    transfer_count = config.bulk_transfer_max_count
+    transfer_thresold = config.transfer_thresold
+    parser = LogParserFactory.get_parser(parser_type, parser_context)
+    log_manager = LogManagerFactory.get_instance(namespace, parser, buffer_size, transfer_count, transfer_thresold)
     log_manager.start_worker()
     w = Watcher(log_file, log_manager.callback)
     w.watch()

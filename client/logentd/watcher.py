@@ -6,12 +6,7 @@ import os
 import time
 import unittest
 
-logger = logging.getLogger('logent.watcher')
-# XXX: Make it a method!
-# Enable logging to console
-logger.addHandler(logging.StreamHandler())
-logger.setLevel(logging.DEBUG)
-
+from logger import log
 
 __all__ = ['Watcher']
 
@@ -39,7 +34,7 @@ class TestWatcher(unittest.TestCase):
     def test_watcher(self):
         self.testfile.write('hello')
         self.testfile.flush()
-        self.watcher.watch(seek_to_end=False, manual_handling=True)
+        self.watcher.watch(manual_handling=True)
         self.assertEqual(self.logs, {self.test_filename: ['hello']})
 
     def tearDown(self):
@@ -53,53 +48,61 @@ class Watcher(object):
             '/var/log/nginx/access.log', callback=logentd.Watcher.log)
     >>> logent.watch()
     """
-    def __init__(self, filename, callback):
+    def __init__(self, filename, callback, seek_to_end=True):
         self.filename = filename
         self.callback = callback
-        self.chunk_size = 1048576
 
         # Sanity checks
         assert callable(callback), 'Not a callable: %s' % self.callback
         assert os.path.isfile(self.filename), 'Not a file: %s' % self.filename
-        self.log(self.filename, 'File is sane!')
 
+        self._filectime = -1
+        self._open_file()
+        if seek_to_end:
+            self._seek()
+        self._enable_logger()
+        self.log(self.filename, 'File is sane!')
         self.log(self.filename, 'Watcher is set!')
 
-    @staticmethod
-    def log(*args):
-        """
-        log anything and everything!!!
-        """
-        format_list = []
-        for arg in args:
-            if isinstance(arg, (str, unicode)):
-                format_list.append('%s')
-            else:
-                format_list.append('%r')
-        args_formatter = ' '.join(format_list)
-        logger.debug(args_formatter, *args)
-
-    def _watch_with_callback(self):
-        while True:
-            lines = self._opened_file.readline()
-            if not lines: break
-            self.callback(self.filename, lines)
+    def _enable_logger(self):
+        self.log = log
 
     def unwatch(self):
         self.log(self.filename, 'Closing file.')
         self._opened_file.close()
 
-    def watch(self, interval=1, seek_to_end=True, manual_handling=False):
+    def _open_file(self):
+        self._opened_file = open(self.filename)
+        self._set_filectime()
+
+    def _seek(self):
+        self._opened_file.seek(os.path.getsize(self.filename))
+
+    def _set_filectime(self):
+        self._filectime = self._get_filectime(self.filename)
+
+    @staticmethod
+    def _get_filectime(filename):
+        return os.stat(filename).st_ctime
+
+    def _if_file_changed(self):
+        return self._filectime != self._get_filectime(self.filename)
+
+    def watch(self, interval=1, manual_handling=False):
         try:
-            self._opened_file = open(self.filename, 'rb')
-            if seek_to_end:
-                self._opened_file.seek(os.path.getsize(self.filename))
             while True:
-                self._watch_with_callback()
+                #if self._if_file_changed():
+                #    self.log('File has changed! Reloading...')
+                #    self.unwatch()
+                #    self._open_file()
+                lines = self._opened_file.readlines()
+                for line in lines:
+                    self.callback(self.filename, line)
+                else:
+                    self.log('Sleeping', interval)
+                    time.sleep(interval)
                 if manual_handling:
                     break
-                self.log('Sleeping', interval)
-                time.sleep(interval)
         finally:
             if not manual_handling:
                 self.unwatch()
