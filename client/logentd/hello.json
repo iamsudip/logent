@@ -1,0 +1,12 @@
+{
+    "servers": ["http://127.0.0.1:5000"],
+    "log_file": "/home/sudip/logent/client/logentd/hello.log",
+    "namespace": "apache",
+    "parser_type": "regex",
+    "parser_context": {
+        "pattern": "blabla"
+    },
+    "transfer_thresold": 5,
+    "buffer_size": 10000,
+    "bulk_transfer_max_count": 100
+}
