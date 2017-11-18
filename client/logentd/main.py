@@ -22,8 +22,9 @@ def start(config):
     buffer_size = config.buffer_size
     transfer_count = config.bulk_transfer_max_count
     transfer_thresold = config.transfer_thresold
+    servers = config.servers
     parser = LogParserFactory.get_parser(parser_type, parser_context)
-    log_manager = LogManagerFactory.get_instance(namespace, parser, buffer_size, transfer_count, transfer_thresold)
+    log_manager = LogManagerFactory.get_instance(namespace, parser, servers, buffer_size, transfer_count, transfer_thresold)
     log_manager.start_worker()
     w = Watcher(log_file, log_manager.callback)
     w.watch()

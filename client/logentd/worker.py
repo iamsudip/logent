@@ -19,20 +19,21 @@ class LogManagerFactory(object):
     _instance = None
 
     @classmethod
-    def get_instance(cls, namespace, parser, buffer_size, transfer_count, transfer_thresold):
+    def get_instance(cls, namespace, parser, servers, buffer_size, transfer_count, transfer_thresold):
         instance = cls._instance
         if not instance:
-            cls._instance = LogManger(namespace, parser, buffer_size, transfer_count, transfer_thresold)
+            cls._instance = LogManger(namespace, parser, servers, buffer_size, transfer_count, transfer_thresold)
         return cls._instance
 
 
 class LogManger(object):
-    def __init__(self, namespace, parser, buffer_size=10000, transfer_count=10, transfer_thresold=10):
+    def __init__(self, namespace, parser, servers, buffer_size=10000, transfer_count=10, transfer_thresold=10):
         self.namespace = namespace
         self.parser = parser
         self.buffer = Buffer(maxlen=buffer_size)
         self.transfer_count = transfer_count
         self.transfer_thresold = transfer_thresold
+        self.servers = servers
         self._enable_logger()
 
     def _enable_logger(self):
@@ -48,12 +49,18 @@ class LogManger(object):
             data = self.get_from_buffer()
             try:
                 if data:
-                    print data
-                    requests.post('http://127.0.0.1:8081/', data=json.dumps(data))
+                    payload = self.prepare_for_sending(data)
+                    for server in self.servers:
+                        requests.post(server, data=json.dumps(payload))
             except ConnectionError:
                 self.log('Server not reachable!')
                 self.add_to_buffer(data)
             time.sleep(self.transfer_thresold)
+
+    def prepare_for_sending(self, data):
+        return {
+            'logs': data
+        }
 
     def prepare_data(self, data):
         return {
